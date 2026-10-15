@@ -1,75 +1,48 @@
 package org.springframework.samples.petclinic.rest.dto;
 
-import java.time.LocalDate;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import org.springframework.samples.petclinic.rest.validation.PetAgeValidation;
 
-/**
- * DTO for Pet (record-based)
- */
-public record PetDto(Integer id, String name, LocalDate birthDate, PetTypeDto type, List<VisitDto> visits) {
+import java.time.LocalDate;
+import java.util.List;
+
+@Schema(name = "Pet", description = "A pet.")
+public record PetDto(
+    @NotNull @Min(0) Integer id,
+    @NotNull @Size(max = 30) String name,
+    @NotNull @PetAgeValidation LocalDate birthDate,
+    @NotNull @Valid PetTypeDto type,
+    @Min(0) Integer ownerId,
+    @NotNull @Valid List<VisitDto> visits
+) {
 
     public PetDto {
-        // ensure visits is non-null to avoid NPEs in mapping code
+        if (id == null || id < 0) {
+            throw new IllegalArgumentException("id must be non-null and non-negative");
+        }
+        if (name == null || name.isBlank() || name.length() > 30) {
+            throw new IllegalArgumentException("name must be non-blank and at most 30 characters");
+        }
+        if (birthDate == null) {
+            throw new IllegalArgumentException("birthDate must be non-null");
+        }
+        LocalDate today = LocalDate.now();
+        if (birthDate.isAfter(today) || birthDate.isBefore(today.minusYears(50))) {
+            throw new IllegalArgumentException("birthDate must be within the last 50 years");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("type must be non-null");
+        }
+        if (ownerId != null && ownerId < 0) {
+            throw new IllegalArgumentException("ownerId must be non-negative");
+        }
         if (visits == null) {
-            visits = Collections.emptyList();
+            throw new IllegalArgumentException("visits must be non-null");
         }
-        if (name != null && name.isBlank()) {
-            throw new IllegalArgumentException("name cannot be blank if provided");
-        }
-        if (birthDate != null && birthDate.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("birthDate cannot be in the future");
-        }
+        visits = List.copyOf(visits);
     }
-
-    // convenience builders and compatibility methods for existing fluent/setter call-sites
-    public PetDto withId(Integer id) {
-        return new PetDto(id, this.name, this.birthDate, this.type, this.visits);
-    }
-
-    public PetDto withName(String name) {
-        return new PetDto(this.id, name, this.birthDate, this.type, this.visits);
-    }
-
-    public PetDto withBirthDate(LocalDate birthDate) {
-        return new PetDto(this.id, this.name, birthDate, this.type, this.visits);
-    }
-
-    public PetDto withType(PetTypeDto type) {
-        return new PetDto(this.id, this.name, this.birthDate, type, this.visits);
-    }
-
-    public PetDto withVisits(List<VisitDto> visits) {
-        return new PetDto(this.id, this.name, this.birthDate, this.type, visits);
-    }
-
-    public PetDto addVisit(VisitDto visit) {
-        List<VisitDto> newVisits = new java.util.ArrayList<>(this.visits);
-        newVisits.add(visit);
-        return new PetDto(this.id, this.name, this.birthDate, this.type, Collections.unmodifiableList(newVisits));
-    }
-
-    // Fluent-style methods (match generated DTO fluent API)
-    public PetDto id(Integer id) { return withId(id); }
-    public PetDto name(String name) { return withName(name); }
-    public PetDto birthDate(LocalDate birthDate) { return withBirthDate(birthDate); }
-    public PetDto type(PetTypeDto type) { return withType(type); }
-    public PetDto addVisitsItem(VisitDto visit) { return addVisit(visit); }
-    public PetDto addPetsItem(VisitDto visit) { return addVisit(visit); } // backward-compatible alias
-
-    // Setter-style methods used by some tests
-    public PetDto setId(Integer id) { return withId(id); }
-    public PetDto setName(String name) { return withName(name); }
-    public PetDto setBirthDate(LocalDate birthDate) { return withBirthDate(birthDate); }
-    public PetDto setType(PetTypeDto type) { return withType(type); }
-    public PetDto setVisits(List<VisitDto> visits) { return withVisits(visits); }
-
-    // Getter-style compatibility for code expecting getX() methods
-    public Integer getId() { return id; }
-    public String getName() { return name; }
-    public LocalDate getBirthDate() { return birthDate; }
-    public PetTypeDto getType() { return type; }
-    public List<VisitDto> getVisits() { return visits; }
-
 }
