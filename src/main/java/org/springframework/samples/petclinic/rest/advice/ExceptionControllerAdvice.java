@@ -138,10 +138,13 @@ public class ExceptionControllerAdvice {
                         .putAdditionalProperty("defaultMessage", defaultMessage);
                 })
                 .toList();
-            logger.debug("Validation error at {} {}: {}",
+            logger.debug("Validation error at {} {} for fields: {}",
                 request.getMethod(),
                 request.getRequestURI(),
-                bindingResult.getFieldErrors());
+                bindingResult.getFieldErrors().stream()
+                    .map(fieldError -> fieldError.getField())
+                    .distinct()
+                    .toList());
             detail.setProperty("schemaValidationErrors", schemaValidationErrors);
             return ResponseEntity.status(status).body(detail);
         }

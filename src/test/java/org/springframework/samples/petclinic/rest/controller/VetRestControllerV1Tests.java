@@ -28,6 +28,8 @@ import org.springframework.samples.petclinic.model.Vet;
 import org.springframework.samples.petclinic.rest.advice.ExceptionControllerAdvice;
 import org.springframework.samples.petclinic.service.ClinicService;
 import org.springframework.samples.petclinic.service.clinicService.ApplicationTestConfig;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -39,6 +41,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.mockito.BDDMockito.given;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -77,18 +80,21 @@ class VetRestControllerV1Tests {
     	vet.setId(1);
     	vet.setFirstName("James");
     	vet.setLastName("Carter");
+        vet.setEmail("james.carter@petclinic.example");
     	vets.add(vet);
 
     	vet = new Vet();
     	vet.setId(2);
     	vet.setFirstName("Helen");
     	vet.setLastName("Leary");
+        vet.setEmail("helen.leary@petclinic.example");
     	vets.add(vet);
 
     	vet = new Vet();
     	vet.setId(3);
     	vet.setFirstName("Linda");
     	vet.setLastName("Douglas");
+        vet.setEmail("linda.douglas@petclinic.example");
     	vets.add(vet);
     }
 
@@ -100,8 +106,10 @@ class VetRestControllerV1Tests {
         	.accept(MediaType.APPLICATION_JSON_VALUE))
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/json"))
+            .andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(jsonPath("$.id").value(1))
-            .andExpect(jsonPath("$.firstName").value("James"));
+            .andExpect(jsonPath("$.firstName").value("James"))
+            .andExpect(jsonPath("$.email").value("james.carter@petclinic.example"));
     }
 
     @Test
@@ -121,8 +129,10 @@ class VetRestControllerV1Tests {
         	.accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/json"))
+            .andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(jsonPath("$.[0].id").value(1))
             .andExpect(jsonPath("$.[0].firstName").value("James"))
+            .andExpect(jsonPath("$.[0].email").value("james.carter@petclinic.example"))
             .andExpect(jsonPath("$.[1].id").value(2))
             .andExpect(jsonPath("$.[1].firstName").value("Helen"));
     }
@@ -146,7 +156,8 @@ class VetRestControllerV1Tests {
         String newVetAsJSON = mapper.writeValueAsString(vetMapper.toVetDto(newVet));
     	this.mockMvc.perform(post("/api/vets")
     		.content(newVetAsJSON).accept(MediaType.APPLICATION_JSON_VALUE).contentType(MediaType.APPLICATION_JSON_VALUE))
-    		.andExpect(status().isCreated());
+            .andExpect(status().isCreated())
+            .andExpect(header().string("Cache-Control", "no-store"));
     }
 
     @Test
@@ -168,11 +179,13 @@ class VetRestControllerV1Tests {
     	given(this.clinicService.findVetById(1)).willReturn(vets.get(0));
     	Vet newVet = vets.get(0);
     	newVet.setFirstName("James");
+        newVet.setEmail("updated.james@petclinic.example");
     	ObjectMapper mapper = new ObjectMapper();
         String newVetAsJSON = mapper.writeValueAsString(vetMapper.toVetDto(newVet));
     	this.mockMvc.perform(put("/api/vets/1")
     		.content(newVetAsJSON).accept(MediaType.APPLICATION_JSON_VALUE).contentType(MediaType.APPLICATION_JSON_VALUE))
         	.andExpect(content().contentType("application/json"))
+            .andExpect(header().string("Cache-Control", "no-store"))
         	.andExpect(status().isNoContent());
 
     	this.mockMvc.perform(get("/api/vets/1")
@@ -180,8 +193,33 @@ class VetRestControllerV1Tests {
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/json"))
             .andExpect(jsonPath("$.id").value(1))
-            .andExpect(jsonPath("$.firstName").value("James"));
+            .andExpect(jsonPath("$.firstName").value("James"))
+            .andExpect(jsonPath("$.email").value("updated.james@petclinic.example"));
 
+    }
+
+    @Test
+    void testVetEndpointsRequireAuthentication() {
+        assertThrows(AuthenticationCredentialsNotFoundException.class, () -> vetRestControllerV1.listVets());
+    }
+
+    @Test
+    @WithMockUser(roles="OWNER_ADMIN")
+    void testVetEndpointsRequireVetAdminRole() {
+        assertThrows(AccessDeniedException.class, () -> vetRestControllerV1.listVets());
+    }
+
+    @Test
+    @WithMockUser(roles="VET_ADMIN")
+    void testCreateVetRejectsInvalidEmail() throws Exception {
+        Vet newVet = vets.get(0);
+        newVet.setEmail("not-an-email");
+        ObjectMapper mapper = new ObjectMapper();
+        String newVetAsJSON = mapper.writeValueAsString(vetMapper.toVetDto(newVet));
+
+        this.mockMvc.perform(post("/api/vets")
+                .content(newVetAsJSON).accept(MediaType.APPLICATION_JSON_VALUE).contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isBadRequest());
     }
 
     @Test

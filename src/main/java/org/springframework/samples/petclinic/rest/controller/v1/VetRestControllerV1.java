@@ -15,6 +15,9 @@
  */
 package org.springframework.samples.petclinic.rest.controller.v1;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +29,8 @@ import org.springframework.samples.petclinic.rest.api.VetsApi;
 import org.springframework.samples.petclinic.rest.dto.VetDto;
 import org.springframework.samples.petclinic.service.ClinicService;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -42,6 +47,8 @@ import java.util.stream.Collectors;
 @CrossOrigin(exposedHeaders = "errors, content-type")
 @RequestMapping("api")
 public class VetRestControllerV1 implements VetsApi {
+
+    private static final Logger logger = LoggerFactory.getLogger(VetRestControllerV1.class);
 
     private final ClinicService clinicService;
     private final VetMapper vetMapper;
@@ -60,7 +67,10 @@ public class VetRestControllerV1 implements VetsApi {
         if (vets.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
-        return new ResponseEntity<>(vets, HttpStatus.OK);
+        audit("list", "vets");
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(vets);
     }
 
     @PreAuthorize("hasRole(@roles.VET_ADMIN)")
@@ -70,7 +80,10 @@ public class VetRestControllerV1 implements VetsApi {
         if (vet == null) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
-        return new ResponseEntity<>(vetMapper.toVetDto(vet), HttpStatus.OK);
+        audit("read", String.valueOf(vetId));
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(vetMapper.toVetDto(vet));
     }
 
     @PreAuthorize("hasRole(@roles.VET_ADMIN)")
@@ -83,7 +96,9 @@ public class VetRestControllerV1 implements VetsApi {
             vet.setSpecialties(vetSpecialities);
         }
         this.clinicService.saveVet(vet);
+        audit("create", String.valueOf(vet.getId()));
         headers.setLocation(UriComponentsBuilder.newInstance().path("/api/vets/{id}").buildAndExpand(vet.getId()).toUri());
+        headers.setCacheControl(CacheControl.noStore());
         return new ResponseEntity<>(vetMapper.toVetDto(vet), headers, HttpStatus.CREATED);
     }
 
@@ -96,6 +111,7 @@ public class VetRestControllerV1 implements VetsApi {
         }
         currentVet.setFirstName(vetDto.getFirstName());
         currentVet.setLastName(vetDto.getLastName());
+        currentVet.setEmail(vetDto.getEmail());
         currentVet.clearSpecialties();
         for (Specialty spec : specialtyMapper.toSpecialtys(vetDto.getSpecialties())) {
             currentVet.addSpecialty(spec);
@@ -105,7 +121,10 @@ public class VetRestControllerV1 implements VetsApi {
             currentVet.setSpecialties(vetSpecialities);
         }
         this.clinicService.saveVet(currentVet);
-        return new ResponseEntity<>(vetMapper.toVetDto(currentVet), HttpStatus.NO_CONTENT);
+        audit("update", String.valueOf(vetId));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setCacheControl(CacheControl.noStore());
+        return new ResponseEntity<>(vetMapper.toVetDto(currentVet), headers, HttpStatus.NO_CONTENT);
     }
 
     @PreAuthorize("hasRole(@roles.VET_ADMIN)")
@@ -117,6 +136,12 @@ public class VetRestControllerV1 implements VetsApi {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
         this.clinicService.deleteVet(vet);
+        audit("delete", String.valueOf(vetId));
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    private void audit(String action, String vetId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        logger.info("Vet profile audit: action={}, vetId={}, actor={}", action, vetId, authentication.getName());
     }
 }
