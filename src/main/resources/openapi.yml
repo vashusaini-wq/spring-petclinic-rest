@@ -2230,6 +2230,13 @@ components:
           maxLength: 30
           pattern: "^[\\p{L}]+([ '-][\\p{L}]+){0,2}\\.?$"
           example: 'Carter'
+        email:
+          title: Email
+          description: The email address of the vet.
+          type: string
+          format: email
+          maxLength: 254
+          example: 'james.carter@petclinic.example'
         specialties:
           title: Specialties
           description: The specialties of the vet.

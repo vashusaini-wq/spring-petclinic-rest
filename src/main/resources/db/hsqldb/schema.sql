@@ -12,7 +12,8 @@ DROP TABLE users IF EXISTS;
 CREATE TABLE vets (
   id         INTEGER IDENTITY PRIMARY KEY,
   first_name VARCHAR(30),
-  last_name  VARCHAR(30)
+  last_name  VARCHAR(30),
+  email      VARCHAR(254)
 );
 CREATE INDEX vets_last_name ON vets (last_name);
 
@@ -79,4 +80,3 @@ CREATE TABLE roles (
 );
 ALTER TABLE roles ADD CONSTRAINT fk_username FOREIGN KEY (username) REFERENCES users (username);
 CREATE INDEX fk_username_idx ON roles (username);
-

@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS vets (
   id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   first_name VARCHAR(30) NOT NULL,
-  last_name VARCHAR(30) NOT NULL
+  last_name VARCHAR(30) NOT NULL,
+  email VARCHAR(254)
 );
 
 CREATE INDEX idx_vets_last_name ON vets(last_name);
